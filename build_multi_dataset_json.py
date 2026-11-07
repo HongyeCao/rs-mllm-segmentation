@@ -1,57 +1,78 @@
+# ==============================================================================
+# 脚本名称：build_multi_dataset_json.py
+# 作用：自动化扫描遥感数据集目录，批量生成训练/验证所需的多模态标准 JSON 文件
+# ==============================================================================
+
 import os
 import json
-import random
+from glob import glob
 
-def build_mllm_json(split="train"):
-    base_dir = os.path.expanduser("~/rs_project/datasets")
-    datasets = ["LoveDA", "Vaihingen", "Potsdam"]
+def generate_dataset_json(images_dir, masks_dir, output_json_path):
+    """
+    扫描指定目录下的图像与掩码文件，组装成 Qwen2-VL 多模态微调所需的标准对话格式
+    """
+    image_extensions = ("*.png", "*.jpg", "*.jpeg", "*.tif", "*.tiff")
+    image_paths = []
     
-    # 为了提升模型的泛化能力，我们为不同的数据集准备多样化的 Instruction
-    prompts = [
-        "Please segment all the semantic targets in this remote sensing image.",
-        "Can you identify and segment the specific regions in this aerial patch?",
-        "Provide the pixel-level segmentation mask for this geographic area."
-    ]
+    for ext in image_extensions:
+        image_paths.extend(glob(os.path.join(images_dir, "**", ext), recursive=True))
     
-    all_samples = []
+    image_paths.sort()
+    dataset_records = []
     
-    for ds_name in datasets:
-        img_dir = os.path.join(base_dir, ds_name, split, "img")
-        ann_dir = os.path.join(base_dir, ds_name, split, "ann")
+    print(f"🔍 正在扫描目录: {images_dir}，共找到 {len(image_paths)} 张影像文件...")
+    
+    for img_path in image_paths:
+        filename = os.path.basename(img_path)
         
-        if not os.path.exists(img_dir) or not os.path.exists(ann_dir):
-            print(f"Warning: {ds_name} 的 {split} 目录不存在，已跳过。")
-            continue
-            
-        img_files = [f for f in os.listdir(img_dir) if f.endswith(('.png', '.jpg', '.tif'))]
+        # 自动推导对应的掩码路径 (支持同名或规则匹配)
+        base_name, _ = os.path.splitext(filename)
+        mask_candidates = [
+            os.path.join(masks_dir, filename),
+            os.path.join(masks_dir, base_name + ".png"),
+            os.path.join(masks_dir, base_name + ".tif")
+        ]
         
-        for img_name in img_files:
-            img_path = os.path.join(img_dir, img_name)
-            # 假设掩码的名称与原图一致，或者后缀为 png
-            ann_name = os.path.splitext(img_name)[0] + ".png"
-            ann_path = os.path.join(ann_dir, ann_name)
-            
-            if os.path.exists(ann_path):
-                sample = {
-                    "id": f"{ds_name}_{split}_{os.path.splitext(img_name)[0]}",
-                    "image": img_path,
-                    "mask": ann_path,
-                    "conversations": [
-                        {"from": "human", "value": f"<image>\n{random.choice(prompts)}"},
-                        {"from": "gpt", "value": "Sure, [SEG]."}
-                    ]
-                }
-                all_samples.append(sample)
+        mask_path = None
+        for cand in mask_candidates:
+            if os.path.exists(cand):
+                mask_path = cand
+                break
                 
-    # 打乱数据集顺序，避免模型在训练时连续看到同一个数据集导致梯度震荡
-    random.shuffle(all_samples)
-    
-    out_json = os.path.join(base_dir, f"{split}_dataset.json")
-    with open(out_json, 'w', encoding='utf-8') as f:
-        json.dump(all_samples, f, indent=4, ensure_ascii=False)
+        if mask_path is None:
+            continue # 如果找不到对应的掩码则跳过
+            
+        # 构筑遥感领域的专家先验 Prompt 与对话对
+        record = {
+            "image": img_path,
+            "mask": mask_path,
+            "conversations": [
+                {
+                    "role": "user",
+                    "value": "<image>\n请作为遥感智能解译专家，精确识别并勾勒出该高分遥感影像中的各类地物目标（含背景、建筑、道路、水体、植被等）的像素级空间边缘轮廓。"
+                },
+                {
+                    "role": "assistant",
+                    "value": "好的，我已经成功解析了该遥感影像的全局语义特征与局部多尺度空间结构，正在输出高精度的像素级语义分割预测掩码。"
+                }
+            ]
+        }
+        dataset_records.append(record)
         
-    print(f"[{split}] 数据集构建完成！共融合 {len(all_samples)} 张切片，保存至: {out_json}")
+    os.makedirs(os.path.dirname(output_json_path), exist_ok=True)
+    with open(output_json_path, 'w', encoding='utf-8') as f:
+        json.dump(dataset_records, f, ensure_ascii=False, indent=4)
+        
+    print(f"✅ 成功生成多模态训练标准 JSON 文件！有效样本数: {len(dataset_records)}，已保存至: {output_json_path}")
 
 if __name__ == "__main__":
-    build_mllm_json("train")
-    build_mllm_json("val")
+    # 示例用法：您可以根据本地实际的遥感数据集路径进行调整
+    # 假设您的数据集存放在 datasets/train/img 和 datasets/train/mask
+    train_img_dir = "datasets/train/img"
+    train_mask_dir = "datasets/train/mask"
+    output_json = "datasets/train_dataset.json"
+    
+    if os.path.exists(train_img_dir) and os.path.exists(train_mask_dir):
+        generate_dataset_json(train_img_dir, train_mask_dir, output_json)
+    else:
+        print("💡 提示：未检测到默认的 datasets/train 目录，请修改脚本中的路径变量或直接运行您的自定义构建逻辑。")
