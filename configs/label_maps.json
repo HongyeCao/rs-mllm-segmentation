@@ -1,0 +1,70 @@
+{
+  "LoveDA": {
+    "verified": true,
+    "num_classes": 7,
+    "class_names": [
+      "Background",
+      "Building",
+      "Road",
+      "Water",
+      "Barren",
+      "Forest",
+      "Agriculture"
+    ],
+    "raw_to_train": {
+      "0": 255,
+      "1": 0,
+      "2": 1,
+      "3": 2,
+      "4": 3,
+      "5": 4,
+      "6": 5,
+      "7": 6
+    },
+    "note": "LoveDA official mapping; verify that local masks still use native IDs."
+  },
+
+  "Potsdam": {
+    "verified": true,
+    "num_classes": 6,
+    "class_names": [
+      "Impervious surfaces",
+      "Building",
+      "Low vegetation",
+      "Tree",
+      "Car",
+      "Clutter/background"
+    ],
+    "raw_to_train": {
+      "1": 0,
+      "2": 1,
+      "3": 2,
+      "4": 3,
+      "5": 4,
+      "6": 5
+    },
+    "note": "Local indexed PNG mapping verified by visualization."
+  },
+
+  "Vaihingen": {
+    "verified": true,
+    "num_classes": 6,
+    "class_names": [
+      "Impervious surfaces",
+      "Building",
+      "Low vegetation",
+      "Tree",
+      "Car",
+      "Clutter/background"
+    ],
+    "raw_to_train": {
+      "1": 0,
+      "2": 1,
+      "3": 2,
+      "4": 3,
+      "5": 4,
+      "6": 5
+    },
+    "note": "Local indexed PNG mapping verified by visualization."
+  }
+}

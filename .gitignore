@@ -1,4 +1,58 @@
-datasets/
-checkpoints/
+# ================================
+# Python
+# ================================
 __pycache__/
+*.py[cod]
+*.so
+
+# ================================
+# IDE / OS
+# ================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ================================
+# Raw datasets
+# ================================
+datasets/LoveDA/
+datasets/Potsdam/
+datasets/Vaihingen/
+
+# 如果 datasets 下还有其他大文件，也可继续单独忽略
+datasets/**/*.png
+datasets/**/*.jpg
+datasets/**/*.jpeg
+datasets/**/*.tif
+datasets/**/*.tiff
+
+# ================================
+# Checkpoints / model weights
+# ================================
+checkpoints/
+experiments/
+
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+
+# ================================
+# Generated evaluation outputs
+# ================================
 eval_results/
+results/
+
+# ================================
+# Backup / temporary scripts
+# ================================
+*_before_resume.py
+*_broken_*.py
+
+# ================================
+# Logs / temp
+# ================================
+*.log
+*.tmp
+*.cache
