@@ -1,0 +1,121 @@
+{
+  "LoveDA": {
+    "samples": 37719,
+    "modes": {
+      "L": 37719
+    },
+    "values": {
+      "0": {
+        "pixels": 270973315,
+        "pct": 2.7405
+      },
+      "1": {
+        "pixels": 3443787946,
+        "pct": 34.8286
+      },
+      "2": {
+        "pixels": 915378535,
+        "pct": 9.2576
+      },
+      "3": {
+        "pixels": 484408443,
+        "pct": 4.899
+      },
+      "4": {
+        "pixels": 823905816,
+        "pct": 8.3325
+      },
+      "5": {
+        "pixels": 470639502,
+        "pct": 4.7598
+      },
+      "6": {
+        "pixels": 1213838975,
+        "pct": 12.2761
+      },
+      "7": {
+        "pixels": 2264877004,
+        "pct": 22.9058
+      }
+    },
+    "examples": [
+      "/home/hong1233718/rs_project/datasets/LoveDA/train/ann/rural_1292_x0000_y0000.png",
+      "/home/hong1233718/rs_project/datasets/LoveDA/train/ann/urban_2062_x0512_y0000.png",
+      "/home/hong1233718/rs_project/datasets/LoveDA/train/ann/rural_529_x0256_y0000.png"
+    ]
+  },
+  "Potsdam": {
+    "samples": 20102,
+    "modes": {
+      "L": 20102
+    },
+    "values": {
+      "1": {
+        "pixels": 1559046091,
+        "pct": 29.5856
+      },
+      "2": {
+        "pixels": 1357387298,
+        "pct": 25.7587
+      },
+      "3": {
+        "pixels": 1186327835,
+        "pct": 22.5126
+      },
+      "4": {
+        "pixels": 816610981,
+        "pct": 15.4966
+      },
+      "5": {
+        "pixels": 94647785,
+        "pct": 1.7961
+      },
+      "6": {
+        "pixels": 255598698,
+        "pct": 4.8504
+      }
+    },
+    "examples": [
+      "/home/hong1233718/rs_project/datasets/Potsdam/train/ann/potsdam_7_8_x0512_y4096.png",
+      "/home/hong1233718/rs_project/datasets/Potsdam/train/ann/potsdam_7_8_x1280_y1024.png",
+      "/home/hong1233718/rs_project/datasets/Potsdam/train/ann/potsdam_6_10_x4608_y4096.png"
+    ]
+  },
+  "Vaihingen": {
+    "samples": 2254,
+    "modes": {
+      "L": 2254
+    },
+    "values": {
+      "1": {
+        "pixels": 164438998,
+        "pct": 27.8299
+      },
+      "2": {
+        "pixels": 153523339,
+        "pct": 25.9825
+      },
+      "3": {
+        "pixels": 126040302,
+        "pct": 21.3312
+      },
+      "4": {
+        "pixels": 135071534,
+        "pct": 22.8597
+      },
+      "5": {
+        "pixels": 7412902,
+        "pct": 1.2546
+      },
+      "6": {
+        "pixels": 4385501,
+        "pct": 0.7422
+      }
+    },
+    "examples": [
+      "/home/hong1233718/rs_project/datasets/Vaihingen/train/ann/vaihingen_area28_x0512_y0000.png",
+      "/home/hong1233718/rs_project/datasets/Vaihingen/train/ann/vaihingen_area23_x1024_y0512.png",
+      "/home/hong1233718/rs_project/datasets/Vaihingen/train/ann/vaihingen_area11_x0256_y2054.png"
+    ]
+  }
+}

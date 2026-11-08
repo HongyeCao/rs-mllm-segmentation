@@ -1,0 +1,10 @@
+[
+  {
+    "id": "LoveDA_val_urban_4165_x0000_y0000",
+    "image": "urban_4165_x0000_y0000.png",
+    "mask": "urban_4165_x0000_y0000.png",
+    "problems": [
+      "IMAGE: SyntaxError(\"broken PNG file (bad header checksum in b'IDAT')\")"
+    ]
+  }
+]

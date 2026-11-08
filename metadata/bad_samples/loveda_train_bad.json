@@ -1,0 +1,26 @@
+[
+  {
+    "id": "LoveDA_train_rural_84_x0512_y0000",
+    "image": "rural_84_x0512_y0000.png",
+    "mask": "rural_84_x0512_y0000.png",
+    "problems": [
+      "IMAGE: SyntaxError(\"broken PNG file (bad header checksum in b'IDAT')\")"
+    ]
+  },
+  {
+    "id": "LoveDA_train_rural_1225_x0512_y0256",
+    "image": "rural_1225_x0512_y0256.png",
+    "mask": "rural_1225_x0512_y0256.png",
+    "problems": [
+      "IMAGE: SyntaxError(\"broken PNG file (bad header checksum in b'IDAT')\")"
+    ]
+  },
+  {
+    "id": "LoveDA_train_urban_1504_x0000_y0000",
+    "image": "urban_1504_x0000_y0000.png",
+    "mask": "urban_1504_x0000_y0000.png",
+    "problems": [
+      "IMAGE: SyntaxError(\"broken PNG file (bad header checksum in b'IDAT')\")"
+    ]
+  }
+]
