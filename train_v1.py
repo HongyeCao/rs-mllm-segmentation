@@ -1,4 +1,10 @@
-"""V1 supervised baseline with exact checkpoint resume support."""
+"""V1 supervised baseline with checkpoint resume support.
+
+Supports:
+1. Fresh training.
+2. Mid-epoch resume from step_xxxxxxx checkpoints.
+3. Epoch-boundary resume from epoch_xx_step_xxxxxxx checkpoints.
+"""
 
 import argparse
 import json
@@ -31,11 +37,21 @@ def save_model(
     optimizer=None,
     save_optimizer=False,
 ):
+    """Save LoRA weights, custom segmentation heads and training state."""
+
     directory = Path(directory)
     directory.mkdir(parents=True, exist_ok=True)
 
-    model.mllm.save_pretrained(directory / "lora_weights")
+    # ---------------------------------------------------------
+    # 1. Save LoRA
+    # ---------------------------------------------------------
+    model.mllm.save_pretrained(
+        directory / "lora_weights"
+    )
 
+    # ---------------------------------------------------------
+    # 2. Save custom V1 modules
+    # ---------------------------------------------------------
     torch.save(
         {
             "spatial_proj": model.spatial_proj.state_dict(),
@@ -46,6 +62,9 @@ def save_model(
         directory / "v1_heads.pth",
     )
 
+    # ---------------------------------------------------------
+    # 3. Save training state
+    # ---------------------------------------------------------
     state = {
         "epoch": epoch,
         "global_step": global_step,
@@ -53,8 +72,11 @@ def save_model(
 
     if save_optimizer and optimizer is not None:
         state["optimizer"] = optimizer.state_dict()
+
+        # CPU RNG
         state["torch_rng"] = torch.get_rng_state()
 
+        # CUDA RNG
         if torch.cuda.is_available():
             state["cuda_rng"] = torch.cuda.get_rng_state_all()
 
@@ -67,103 +89,129 @@ def save_model(
 
 
 def main():
+    # =========================================================
+    # Arguments
+    # =========================================================
     ap = argparse.ArgumentParser()
 
     ap.add_argument(
         "--train-json",
         default="datasets/train_dataset.json",
     )
+
     ap.add_argument(
         "--maps",
         default="configs/label_maps.json",
     )
+
     ap.add_argument(
         "--datasets",
         nargs="+",
         default=["LoveDA"],
     )
+
     ap.add_argument(
         "--epochs",
         type=int,
         default=1,
     )
+
     ap.add_argument(
         "--max-steps",
         type=int,
         default=16,
         help="0 means no step limit",
     )
+
     ap.add_argument(
         "--limit-samples",
         type=int,
         default=16,
         help="0 means full dataset",
     )
+
     ap.add_argument(
         "--accum",
         type=int,
         default=8,
     )
+
     ap.add_argument(
         "--lr",
         type=float,
         default=1e-4,
     )
+
     ap.add_argument(
         "--save-every",
         type=int,
         default=1000,
     )
+
     ap.add_argument(
         "--output",
         default="experiments/v1_smoke",
     )
+
     ap.add_argument(
         "--save-optimizer",
         action="store_true",
     )
+
     ap.add_argument(
         "--seed",
         type=int,
         default=42,
     )
+
     ap.add_argument(
         "--resume",
         type=str,
         default=None,
         help=(
-            "Resume from a V1 checkpoint directory, "
-            "e.g. experiments/E01_LoveDA_baseline/step_0010000"
+            "Resume from a V1 checkpoint directory, e.g. "
+            "experiments/E01_LoveDA_baseline/step_0010000 "
+            "or "
+            "experiments/E01_LoveDA_baseline/"
+            "epoch_01_step_0022650"
         ),
     )
 
     args = ap.parse_args()
 
-    # ---------------------------------------------------------
+    # =========================================================
     # Reproducibility
-    # ---------------------------------------------------------
+    # =========================================================
     random.seed(args.seed)
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
     if args.accum < 1:
-        raise ValueError("--accum must be positive")
+        raise ValueError(
+            "--accum must be positive"
+        )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # Label configuration
-    # ---------------------------------------------------------
+    # =========================================================
     maps = read_maps(args.maps)
 
     for name in args.datasets:
-        if name not in maps or not maps[name]["verified"]:
+        if (
+            name not in maps
+            or not maps[name]["verified"]
+        ):
             raise ValueError(
-                f"{name}: unverified mapping. Refusing to train."
+                f"{name}: unverified mapping. "
+                "Refusing to train."
             )
 
-    # ---------------------------------------------------------
-    # Dataset
-    # ---------------------------------------------------------
-    processor = AutoProcessor.from_pretrained(MODEL_ID)
+    # =========================================================
+    # Processor + dataset
+    # =========================================================
+    processor = AutoProcessor.from_pretrained(
+        MODEL_ID
+    )
 
     ds = SegDataset(
         args.train_json,
@@ -193,23 +241,30 @@ def main():
         collate_fn=single_collate,
     )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # Device
-    # ---------------------------------------------------------
+    # =========================================================
     device = torch.device(
-        "cuda" if torch.cuda.is_available() else "cpu"
+        "cuda"
+        if torch.cuda.is_available()
+        else "cpu"
     )
 
     if device.type != "cuda":
         raise RuntimeError(
-            "V1 4-bit LoRA training requires CUDA GPU"
+            "V1 4-bit LoRA training "
+            "requires CUDA GPU"
         )
 
-    # ---------------------------------------------------------
-    # Model
-    # ---------------------------------------------------------
-    model = V1Segmenter(maps).train()
+    # =========================================================
+    # Build model
+    # =========================================================
+    model = V1Segmenter(
+        maps
+    ).train()
 
+    # Quantized MLLM can be automatically sharded,
+    # while custom modules must explicitly move to GPU.
     for module in (
         model.spatial_proj,
         model.text_proj,
@@ -218,19 +273,30 @@ def main():
     ):
         module.to(device)
 
-    # ---------------------------------------------------------
+    # =========================================================
     # Resume metadata
-    # ---------------------------------------------------------
+    # =========================================================
     resume_state = None
     resume_step = 0
     resume_epoch = 0
+
+    # True when loading:
+    #
+    # epoch_01_step_0022650
+    #
+    # rather than:
+    #
+    # step_0010000
+    #
+    resume_from_epoch_end = False
 
     if args.resume is not None:
         ckpt = Path(args.resume)
 
         if not ckpt.is_dir():
             raise FileNotFoundError(
-                f"Resume checkpoint not found: {ckpt}"
+                f"Resume checkpoint "
+                f"not found: {ckpt}"
             )
 
         print()
@@ -239,9 +305,9 @@ def main():
         print("=" * 70)
         print("Checkpoint:", ckpt)
 
-        # -----------------------------------------------------
-        # Restore LoRA
-        # -----------------------------------------------------
+        # =====================================================
+        # Restore LoRA adapter
+        # =====================================================
         adapter_path = (
             ckpt
             / "lora_weights"
@@ -250,7 +316,8 @@ def main():
 
         if not adapter_path.exists():
             raise FileNotFoundError(
-                f"LoRA weights not found: {adapter_path}"
+                f"LoRA weights not found: "
+                f"{adapter_path}"
             )
 
         adapter_state = load_file(
@@ -265,14 +332,17 @@ def main():
 
         print("LoRA restored.")
 
-        # -----------------------------------------------------
-        # Restore custom projection / decoder / heads
-        # -----------------------------------------------------
-        heads_path = ckpt / "v1_heads.pth"
+        # =====================================================
+        # Restore custom segmentation modules
+        # =====================================================
+        heads_path = (
+            ckpt / "v1_heads.pth"
+        )
 
         if not heads_path.exists():
             raise FileNotFoundError(
-                f"V1 heads not found: {heads_path}"
+                f"V1 heads not found: "
+                f"{heads_path}"
             )
 
         heads_state = torch.load(
@@ -284,26 +354,32 @@ def main():
         model.spatial_proj.load_state_dict(
             heads_state["spatial_proj"]
         )
+
         model.text_proj.load_state_dict(
             heads_state["text_proj"]
         )
+
         model.shared_decoder.load_state_dict(
             heads_state["shared_decoder"]
         )
+
         model.heads.load_state_dict(
             heads_state["heads"]
         )
 
         print("V1 heads restored.")
 
-        # -----------------------------------------------------
+        # =====================================================
         # Restore training metadata
-        # -----------------------------------------------------
-        state_path = ckpt / "training_state.pth"
+        # =====================================================
+        state_path = (
+            ckpt / "training_state.pth"
+        )
 
         if not state_path.exists():
             raise FileNotFoundError(
-                f"Training state not found: {state_path}"
+                f"Training state "
+                f"not found: {state_path}"
             )
 
         resume_state = torch.load(
@@ -320,22 +396,53 @@ def main():
             resume_state["epoch"]
         )
 
-        print("Resume epoch     :", resume_epoch)
-        print("Resume microstep :", resume_step)
+        # -----------------------------------------------------
+        # Check whether this is an epoch-end checkpoint
+        # -----------------------------------------------------
+        resume_from_epoch_end = (
+            ckpt.name.startswith("epoch_")
+        )
 
-        # Exact recovery requires no partially accumulated
-        # gradients to be missing.
-        if resume_step % args.accum != 0:
+        print(
+            "Resume epoch     :",
+            resume_epoch,
+        )
+
+        print(
+            "Resume microstep :",
+            resume_step,
+        )
+
+        print(
+            "Epoch-end resume :",
+            resume_from_epoch_end,
+        )
+
+        # -----------------------------------------------------
+        # For mid-epoch resume, accumulated gradients are NOT
+        # stored. Therefore the checkpoint must lie exactly
+        # at a gradient-accumulation boundary.
+        #
+        # Epoch-end checkpoints are safe even when global_step
+        # % accum != 0 because the final partial accumulation
+        # has already been flushed before saving.
+        # -----------------------------------------------------
+        if (
+            not resume_from_epoch_end
+            and resume_step % args.accum != 0
+        ):
             raise RuntimeError(
-                f"Checkpoint step {resume_step} is not "
-                f"an accumulation boundary for "
-                f"accum={args.accum}. "
-                "Exact resume is unsafe."
+                f"Checkpoint step "
+                f"{resume_step} is not "
+                f"an accumulation boundary "
+                f"for accum={args.accum}. "
+                "Exact mid-epoch resume "
+                "is unsafe."
             )
 
-    # ---------------------------------------------------------
+    # =========================================================
     # Optimizer
-    # ---------------------------------------------------------
+    # =========================================================
     optimizer = torch.optim.AdamW(
         (
             p
@@ -348,7 +455,8 @@ def main():
     if resume_state is not None:
         if "optimizer" not in resume_state:
             raise RuntimeError(
-                "Checkpoint has no optimizer state. "
+                "Checkpoint has no "
+                "optimizer state. "
                 "Exact resume is impossible."
             )
 
@@ -360,22 +468,46 @@ def main():
         print("=" * 70)
         print()
 
-    valid_micro = resume_step
+    # =========================================================
+    # Step counters
+    # =========================================================
+
+    # ---------------------------------------------------------
+    # Mid-epoch checkpoint:
+    #
+    # valid_micro must continue from resume_step because
+    # gradient accumulation boundaries are global within
+    # that epoch.
+    #
+    # Epoch-end checkpoint:
+    #
+    # The final partial accumulation has already been flushed,
+    # so the next epoch must restart accumulation from zero.
+    # ---------------------------------------------------------
+    if resume_from_epoch_end:
+        valid_micro = 0
+    else:
+        valid_micro = resume_step
+
     global_step = resume_step
 
     optimizer.zero_grad(
         set_to_none=True
     )
 
-    # ---------------------------------------------------------
-    # Output
-    # ---------------------------------------------------------
-    out = Path(args.output)
+    # =========================================================
+    # Output directory
+    # =========================================================
+    out = Path(
+        args.output
+    )
+
     out.mkdir(
         parents=True,
         exist_ok=True,
     )
 
+    # Save current launch configuration.
     (
         out / "run_config.json"
     ).write_text(
@@ -386,19 +518,30 @@ def main():
         )
     )
 
-    # ---------------------------------------------------------
-    # Training
-    # ---------------------------------------------------------
+    # =========================================================
+    # Training loop
+    # =========================================================
     for epoch in range(args.epochs):
 
+        # -----------------------------------------------------
+        # If resuming from epoch 1 and total epochs=2:
+        #
+        # epoch=0  -> skip
+        # epoch=1  -> actually train epoch 2
+        # -----------------------------------------------------
         if (
             resume_state is not None
             and epoch < resume_epoch
         ):
             continue
 
+        # -----------------------------------------------------
+        # Only mid-epoch checkpoints require replaying/skipping
+        # the already processed part of the epoch.
+        # -----------------------------------------------------
         resume_skipping = (
             resume_state is not None
+            and not resume_from_epoch_end
             and epoch == resume_epoch
             and resume_step > 0
         )
@@ -406,22 +549,86 @@ def main():
         skipped_valid = 0
         rng_restored = False
 
+        # =====================================================
+        # Epoch-boundary resume
+        # =====================================================
+        #
+        # For an epoch-end checkpoint:
+        #
+        #   epoch_01_step_0022650
+        #
+        # the checkpoint RNG was captured after completion of
+        # epoch 1.
+        #
+        # Restore it BEFORE DataLoader creates the new epoch's
+        # shuffle permutation.
+        # =====================================================
+        if (
+            resume_state is not None
+            and resume_from_epoch_end
+            and epoch == resume_epoch
+        ):
+            if "torch_rng" in resume_state:
+                torch.set_rng_state(
+                    resume_state["torch_rng"]
+                )
+
+            if (
+                torch.cuda.is_available()
+                and "cuda_rng"
+                in resume_state
+            ):
+                torch.cuda.set_rng_state_all(
+                    resume_state["cuda_rng"]
+                )
+
+            rng_restored = True
+
+            print()
+            print("=" * 70)
+
+            print(
+                f"Epoch-end resume complete. "
+                f"Starting epoch "
+                f"{epoch + 1} "
+                f"from global microstep "
+                f"{global_step}."
+            )
+
+            print("=" * 70)
+            print()
+
+        # =====================================================
+        # Iterate dataset
+        # =====================================================
         for batch in loader:
 
-            # -------------------------------------------------
-            # Replay dataset traversal WITHOUT model forward.
+            # =================================================
+            # Mid-epoch replay
+            # =================================================
             #
-            # Important:
-            # DataLoader shuffle must first be reconstructed
-            # from seed=42. Checkpoint RNG is restored only
-            # after reaching the first unfinished microbatch.
-            # -------------------------------------------------
+            # IMPORTANT:
+            #
+            # Do NOT restore checkpoint RNG before DataLoader
+            # has generated the original epoch permutation.
+            #
+            # Instead:
+            #
+            # 1. reproduce the same shuffle;
+            # 2. skip the already-trained valid microbatches;
+            # 3. restore checkpoint RNG immediately before the
+            #    first unfinished microbatch.
+            # =================================================
             if (
                 resume_skipping
                 and skipped_valid < resume_step
             ):
-                y_cpu = batch["target_mask"]
+                y_cpu = batch[
+                    "target_mask"
+                ]
 
+                # Original training does NOT count
+                # all-ignore masks as microsteps.
                 if not (
                     y_cpu != 255
                 ).any().item():
@@ -431,7 +638,8 @@ def main():
 
                 if (
                     skipped_valid % 1000 == 0
-                    or skipped_valid == resume_step
+                    or skipped_valid
+                    == resume_step
                 ):
                     print(
                         "Resume scan: "
@@ -441,9 +649,9 @@ def main():
 
                 continue
 
-            # -------------------------------------------------
-            # Restore exact RNG state at checkpoint boundary
-            # -------------------------------------------------
+            # =================================================
+            # Restore RNG after mid-epoch replay
+            # =================================================
             if (
                 resume_skipping
                 and not rng_restored
@@ -453,14 +661,20 @@ def main():
                     != resume_step
                 ):
                     raise RuntimeError(
-                        "Resume alignment failed: "
-                        f"{skipped_valid} != "
-                        f"{resume_step}"
+                        "Resume alignment "
+                        "failed: "
+                        f"{skipped_valid} "
+                        f"!= {resume_step}"
                     )
 
-                if "torch_rng" in resume_state:
+                if (
+                    "torch_rng"
+                    in resume_state
+                ):
                     torch.set_rng_state(
-                        resume_state["torch_rng"]
+                        resume_state[
+                            "torch_rng"
+                        ]
                     )
 
                 if (
@@ -469,48 +683,58 @@ def main():
                     in resume_state
                 ):
                     torch.cuda.set_rng_state_all(
-                        resume_state["cuda_rng"]
+                        resume_state[
+                            "cuda_rng"
+                        ]
                     )
 
                 rng_restored = True
                 resume_skipping = False
 
                 print()
+                print("=" * 70)
                 print(
-                    "=" * 70
+                    "Resume alignment "
+                    "complete."
                 )
+
                 print(
-                    "Resume alignment complete."
-                )
-                print(
-                    "Continuing after microstep "
+                    "Continuing after "
+                    f"microstep "
                     f"{resume_step}"
                 )
-                print(
-                    "=" * 70
-                )
+
+                print("=" * 70)
                 print()
 
-            # -------------------------------------------------
-            # Normal training
-            # -------------------------------------------------
+            # =================================================
+            # Move batch to GPU
+            # =================================================
             batch = to_device(
                 batch,
                 device,
             )
 
-            y = batch["target_mask"]
+            y = batch[
+                "target_mask"
+            ]
 
+            # Ignore completely unlabeled patches.
             if not (
                 y != 255
             ).any().item():
                 continue
 
+            # =================================================
+            # Forward
+            # =================================================
             with torch.autocast(
                 "cuda",
                 dtype=torch.bfloat16,
             ):
-                logits = model(batch)
+                logits = model(
+                    batch
+                )
 
                 loss = F.cross_entropy(
                     logits.float(),
@@ -522,10 +746,14 @@ def main():
                 loss
             ).item():
                 raise FloatingPointError(
-                    "Non-finite loss: abort; "
-                    "inspect input/mask/model"
+                    "Non-finite loss: "
+                    "abort; inspect "
+                    "input/mask/model"
                 )
 
+            # =================================================
+            # Backward
+            # =================================================
             (
                 loss
                 / args.accum
@@ -534,6 +762,9 @@ def main():
             valid_micro += 1
             global_step += 1
 
+            # =================================================
+            # Optimizer step
+            # =================================================
             if (
                 valid_micro
                 % args.accum
@@ -550,13 +781,20 @@ def main():
                     set_to_none=True
                 )
 
+            # =================================================
+            # Logging
+            # =================================================
             print(
                 f"epoch={epoch + 1} "
                 f"microstep={global_step} "
                 f"{batch['dataset_name']} "
-                f"loss={loss.item():.4f}"
+                f"loss="
+                f"{loss.item():.4f}"
             )
 
+            # =================================================
+            # Periodic checkpoint
+            # =================================================
             if (
                 args.save_every
                 and global_step
@@ -576,6 +814,9 @@ def main():
                     args.save_optimizer,
                 )
 
+            # =================================================
+            # Optional microstep limit
+            # =================================================
             if (
                 args.max_steps
                 and global_step
@@ -583,19 +824,26 @@ def main():
             ):
                 break
 
-        # -----------------------------------------------------
-        # Handle final partial accumulation
-        # -----------------------------------------------------
+        # =====================================================
+        # Flush final partial gradient accumulation
+        # =====================================================
         rem = (
             valid_micro
             % args.accum
         )
 
         if rem:
+            # During training every loss was divided
+            # by args.accum.
+            #
+            # For the final partial group, rescale gradients
+            # so that the effective average corresponds to
+            # the actual number of microbatches.
             for p in model.parameters():
                 if p.grad is not None:
                     p.grad.mul_(
-                        args.accum / rem
+                        args.accum
+                        / rem
                     )
 
             torch.nn.utils.clip_grad_norm_(
@@ -609,11 +857,14 @@ def main():
                 set_to_none=True
             )
 
-            valid_micro = 0
+        # -----------------------------------------------------
+        # New epoch starts a fresh accumulation count.
+        # -----------------------------------------------------
+        valid_micro = 0
 
-        # -----------------------------------------------------
-        # Epoch checkpoint
-        # -----------------------------------------------------
+        # =====================================================
+        # Save epoch checkpoint
+        # =====================================================
         save_model(
             model,
             out
