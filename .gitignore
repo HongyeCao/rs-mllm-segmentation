@@ -56,3 +56,14 @@ results/
 *.log
 *.tmp
 *.cache
+# ================================
+# Local dataset metadata originals
+# Public/reproducible copies live in metadata/
+# ================================
+bad_loveda_samples.json
+bad_loveda_val_samples.json
+label_audit_200.json
+label_audit_all.json
+
+# Local generated dataset manifests
+datasets/*.json
