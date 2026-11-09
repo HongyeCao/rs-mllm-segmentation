@@ -75,3 +75,89 @@ Epoch 2
 
 Status:
 Improved; one additional epoch recommended for convergence check.
+
+
+## D01 — LoveDA 10% Label-Efficiency Baseline
+
+Branch:
+exp/d01-loveda-data-efficiency
+
+Training split:
+LoveDA 10%, source-image-grouped sampling, seed=42
+
+Effective training samples per epoch:
+2273
+
+Training epochs:
+10
+
+Best epoch:
+9
+
+Best checkpoint:
+experiments/D01_LoveDA_10pct_seed42/epoch_09_step_0020457
+
+Validation samples:
+15020
+
+Best validation results:
+OA: 65.3105
+mIoU: 44.5325
+
+Per-class IoU:
+Background: 49.8338
+Building: 52.2964
+Road: 44.7316
+Water: 57.6525
+Barren: 24.7824
+Forest: 31.6500
+Agriculture: 50.7807
+
+Full-data V1 baseline:
+OA: 67.5192
+mIoU: 47.0197
+
+Performance retention:
+94.71%
+
+Best-checkpoint optimization microsteps:
+20457
+
+Full-data baseline optimization microsteps:
+45300
+
+Relative optimization budget:
+45.16%
+
+Conclusion:
+Using approximately 10% of the labeled LoveDA training data,
+the Qwen2-VL V1 baseline retains approximately 94.7% of the
+full-data segmentation performance. The result demonstrates
+strong label efficiency, although comparison with conventional
+segmentation baselines is still required before attributing the
+advantage specifically to the multimodal large model.
+Agriculture: 50.7807
+
+Full-data V1 baseline:
+OA: 67.5192
+mIoU: 47.0197
+
+Performance retention:
+94.71%
+
+Best-checkpoint optimization microsteps:
+20457
+
+Full-data baseline optimization microsteps:
+45300
+
+Relative optimization budget:
+45.16%
+
+Conclusion:
+Using approximately 10% of the labeled LoveDA training data,
+the Qwen2-VL V1 baseline retains approximately 94.7% of the
+full-data segmentation performance. The result demonstrates
+strong label efficiency, although comparison with conventional
+segmentation baselines is still required before attributing the
+advantage specifically to the multimodal large model.
