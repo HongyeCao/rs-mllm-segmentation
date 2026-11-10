@@ -136,28 +136,3 @@ full-data segmentation performance. The result demonstrates
 strong label efficiency, although comparison with conventional
 segmentation baselines is still required before attributing the
 advantage specifically to the multimodal large model.
-Agriculture: 50.7807
-
-Full-data V1 baseline:
-OA: 67.5192
-mIoU: 47.0197
-
-Performance retention:
-94.71%
-
-Best-checkpoint optimization microsteps:
-20457
-
-Full-data baseline optimization microsteps:
-45300
-
-Relative optimization budget:
-45.16%
-
-Conclusion:
-Using approximately 10% of the labeled LoveDA training data,
-the Qwen2-VL V1 baseline retains approximately 94.7% of the
-full-data segmentation performance. The result demonstrates
-strong label efficiency, although comparison with conventional
-segmentation baselines is still required before attributing the
-advantage specifically to the multimodal large model.
