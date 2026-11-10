@@ -1,0 +1,32 @@
+{
+  "LoveDA": {
+    "Background": {
+      "train_id": 0,
+      "description": "Other land-cover or scene regions that do not belong to the explicitly defined building, road, water, barren, forest, or agriculture categories in aerial imagery."
+    },
+    "Building": {
+      "train_id": 1,
+      "description": "Man-made buildings and constructed structures characterized by rooftops, regular geometric footprints, structural edges, and compact spatial shapes in aerial imagery."
+    },
+    "Road": {
+      "train_id": 2,
+      "description": "Transportation surfaces such as paved roads and streets, usually appearing as elongated, connected, and approximately linear structures in aerial imagery."
+    },
+    "Water": {
+      "train_id": 3,
+      "description": "Water-covered surfaces including rivers, lakes, ponds, canals, and other relatively homogeneous water regions visible from aerial imagery."
+    },
+    "Barren": {
+      "train_id": 4,
+      "description": "Bare or exposed land surfaces with little or no vegetation, including exposed soil, cleared ground, and non-vegetated open areas in aerial imagery."
+    },
+    "Forest": {
+      "train_id": 5,
+      "description": "Land dominated by dense trees and woody vegetation, typically characterized by irregular canopy structure, clustered crowns, and dense vegetation texture in aerial imagery."
+    },
+    "Agriculture": {
+      "train_id": 6,
+      "description": "Cultivated agricultural land including crop fields and farmland, often characterized by field parcels, repetitive planting patterns, regular boundaries, and agricultural vegetation textures in aerial imagery."
+    }
+  }
+}
